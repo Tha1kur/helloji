@@ -3,7 +3,7 @@ import withAuth from '../utils/withAuth'
 import { useNavigate } from 'react-router-dom'
 import "../App.css";
 import { Button, IconButton, TextField } from '@mui/material';
-import RestoreIcon from '@mui/icons-material/Restore';
+import { Restore as RestoreIcon } from '@mui/icons-material';
 import { AuthContext } from '../contexts/AuthContext';
 
 function HomeComponent() {

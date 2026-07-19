@@ -43,6 +43,7 @@ grows as O(n²) — see [Known limitations](#known-limitations).
 | Layer | Choice |
 | --- | --- |
 | Frontend | React 18, React Router 6, Material UI |
+| Build | Vite |
 | Real-time | WebRTC, Socket.IO |
 | Backend | Node.js, Express |
 | Database | MongoDB with Mongoose |
@@ -72,8 +73,11 @@ npm run dev              # http://localhost:8000
 cd frontend
 npm install
 cp .env.example .env     # defaults to the local backend
-npm start                # http://localhost:3000
+npm run dev              # http://localhost:3000
 ```
+
+Other frontend scripts: `npm run build` produces `build/`, and `npm run preview`
+serves that production build locally.
 
 ### Environment variables
 
@@ -82,7 +86,7 @@ npm start                # http://localhost:3000
 | `backend/.env` | `MONGO_URI` | MongoDB connection string |
 | `backend/.env` | `PORT` | API/socket port (default `8000`) |
 | `backend/.env` | `CORS_ORIGINS` | Comma-separated allowed origins |
-| `frontend/.env` | `REACT_APP_SERVER_URL` | Backend base URL |
+| `frontend/.env` | `VITE_SERVER_URL` | Backend base URL |
 
 Both `.env` files are gitignored. Only the `.env.example` templates are committed.
 

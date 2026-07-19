@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import io from "socket.io-client";
-import { Badge, Button, IconButton, TextField } from '@mui/material';
+import { Badge } from '@mui/material';
 import {
     CallEnd as CallEndIcon,
     Chat as ChatIcon,
@@ -456,105 +456,162 @@ export default function VideoMeetComponent() {
     return (
         <div>
             {askForUsername ? (
-                <div>
-                    <h2>Enter into Lobby</h2>
-                    <TextField
-                        id="lobby-username"
-                        label="Username"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") connect(); }}
-                        variant="outlined"
-                    />
-                    <Button variant="contained" onClick={connect}>Connect</Button>
+                <div className={styles.lobby}>
+                    <div className={styles.lobbyCard}>
+                        <div className={styles.lobbyPreview}>
+                            <video ref={localVideoRef} autoPlay muted playsInline></video>
+                        </div>
 
-                    {statusMessage && <p>{statusMessage}</p>}
+                        <div>
+                            <h1 className={styles.lobbyTitle}>Ready to join?</h1>
+                            <p className={styles.lobbyLede}>
+                                You are joining <span className={styles.lobbyRoom}>{roomId}</span>
+                            </p>
 
-                    <div>
-                        <video ref={localVideoRef} autoPlay muted playsInline></video>
+                            <div className={styles.lobbyForm}>
+                                <input
+                                    id="lobby-username"
+                                    className="field"
+                                    placeholder="Your name"
+                                    aria-label="Your name"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === "Enter") connect(); }}
+                                />
+                                <button type="button" className="btn btn--primary" onClick={connect}>
+                                    Join call
+                                </button>
+
+                                {statusMessage && (
+                                    <p className={styles.lobbyStatus}>{statusMessage}</p>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             ) : (
                 <div className={styles.meetVideoContainer}>
 
-                    {showModal && (
-                        <div className={styles.chatRoom}>
-                            <div className={styles.chatContainer}>
-                                <h1>Chat</h1>
-
-                                <div className={styles.chattingDisplay}>
-                                    {messages.length ? messages.map((item, index) => (
-                                        <div style={{ marginBottom: "20px" }} key={index}>
-                                            <p style={{ fontWeight: "bold" }}>{item.sender}</p>
-                                            <p>{item.data}</p>
-                                        </div>
-                                    )) : <p>No Messages Yet</p>}
-                                </div>
-
-                                <div className={styles.chattingArea}>
-                                    <TextField
-                                        value={message}
-                                        onChange={(e) => setMessage(e.target.value)}
-                                        onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
-                                        id="chat-input"
-                                        label="Enter Your chat"
-                                        variant="outlined"
-                                    />
-                                    <Button variant="contained" onClick={sendMessage}>Send</Button>
-                                </div>
+                    <div className={styles.stage}>
+                        {videos.length > 0 ? (
+                            <div className={styles.conferenceView}>
+                                {videos.map((remote) => (
+                                    <div className={styles.remoteTile} key={remote.socketId}>
+                                        <video
+                                            data-socket={remote.socketId}
+                                            ref={(element) => {
+                                                if (element && remote.stream && element.srcObject !== remote.stream) {
+                                                    element.srcObject = remote.stream;
+                                                }
+                                            }}
+                                            autoPlay
+                                            playsInline
+                                        ></video>
+                                    </div>
+                                ))}
                             </div>
-                        </div>
-                    )}
-
-                    <div className={styles.buttonContainers}>
-                        <IconButton onClick={handleVideo} style={{ color: "white" }}>
-                            {video ? <VideocamIcon /> : <VideocamOffIcon />}
-                        </IconButton>
-
-                        <IconButton onClick={handleEndCall} style={{ color: "red" }}>
-                            <CallEndIcon />
-                        </IconButton>
-
-                        <IconButton onClick={handleAudio} style={{ color: "white" }}>
-                            {audio ? <MicIcon /> : <MicOffIcon />}
-                        </IconButton>
-
-                        {screenAvailable && (
-                            <IconButton onClick={handleScreen} style={{ color: "white" }}>
-                                {screen ? <ScreenShareIcon /> : <StopScreenShareIcon />}
-                            </IconButton>
+                        ) : (
+                            <div className={styles.emptyStage}>
+                                <h2>You are the only one here</h2>
+                                <p>Share this meeting code and they can join straight from a browser.</p>
+                                <code>{roomId}</code>
+                            </div>
                         )}
 
-                        <Badge badgeContent={newMessages} max={999} color="secondary">
-                            <IconButton onClick={toggleChat} style={{ color: "white" }}>
-                                <ChatIcon />
-                            </IconButton>
-                        </Badge>
+                        <video
+                            className={styles.meetUserVideo}
+                            ref={localVideoRef}
+                            autoPlay
+                            muted
+                            playsInline
+                        ></video>
+
+                        {showModal && (
+                            <div className={styles.chatRoom}>
+                                <div className={styles.chatContainer}>
+                                    <div className={styles.chatHeader}>Chat</div>
+
+                                    <div className={styles.chattingDisplay}>
+                                        {messages.length ? messages.map((item, index) => (
+                                            <div className={styles.chatMessage} key={index}>
+                                                <p>{item.sender}</p>
+                                                <p>{item.data}</p>
+                                            </div>
+                                        )) : <p className={styles.chatEmpty}>No messages yet</p>}
+                                    </div>
+
+                                    <div className={styles.chattingArea}>
+                                        <input
+                                            className="field"
+                                            id="chat-input"
+                                            aria-label="Message"
+                                            placeholder="Type a message"
+                                            value={message}
+                                            onChange={(e) => setMessage(e.target.value)}
+                                            onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
+                                        />
+                                        <button
+                                            type="button"
+                                            className="btn btn--primary"
+                                            onClick={sendMessage}
+                                        >
+                                            Send
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
-                    <video
-                        className={styles.meetUserVideo}
-                        ref={localVideoRef}
-                        autoPlay
-                        muted
-                        playsInline
-                    ></video>
+                    <div className={styles.buttonContainers}>
+                        <button
+                            type="button"
+                            aria-label={video ? "Turn camera off" : "Turn camera on"}
+                            className={`${styles.controlButton} ${video ? "" : styles.controlButtonOff}`}
+                            onClick={handleVideo}
+                        >
+                            {video ? <VideocamIcon /> : <VideocamOffIcon />}
+                        </button>
 
-                    <div className={styles.conferenceView}>
-                        {videos.map((remote) => (
-                            <div key={remote.socketId}>
-                                <video
-                                    data-socket={remote.socketId}
-                                    ref={(element) => {
-                                        if (element && remote.stream && element.srcObject !== remote.stream) {
-                                            element.srcObject = remote.stream;
-                                        }
-                                    }}
-                                    autoPlay
-                                    playsInline
-                                ></video>
-                            </div>
-                        ))}
+                        <button
+                            type="button"
+                            aria-label={audio ? "Mute microphone" : "Unmute microphone"}
+                            className={`${styles.controlButton} ${audio ? "" : styles.controlButtonOff}`}
+                            onClick={handleAudio}
+                        >
+                            {audio ? <MicIcon /> : <MicOffIcon />}
+                        </button>
+
+                        {screenAvailable && (
+                            <button
+                                type="button"
+                                aria-label={screen ? "Stop sharing screen" : "Share screen"}
+                                className={styles.controlButton}
+                                onClick={handleScreen}
+                            >
+                                {screen ? <StopScreenShareIcon /> : <ScreenShareIcon />}
+                            </button>
+                        )}
+
+                        <Badge badgeContent={newMessages} max={99} color="warning">
+                            <button
+                                type="button"
+                                aria-label="Toggle chat"
+                                className={styles.controlButton}
+                                onClick={toggleChat}
+                            >
+                                <ChatIcon />
+                            </button>
+                        </Badge>
+
+                        <button
+                            type="button"
+                            aria-label="Leave call"
+                            className={`${styles.controlButton} ${styles.controlButtonEnd}`}
+                            onClick={handleEndCall}
+                        >
+                            <CallEndIcon />
+                        </button>
                     </div>
                 </div>
             )}

@@ -24,9 +24,17 @@ if (!parsed.success) {
     process.exit(1);
 }
 
-export const config = {
-    ...parsed.data,
-    corsOrigins: parsed.data.CORS_ORIGINS.split(",")
-        .map((origin) => origin.trim())
-        .filter(Boolean),
-};
+const corsOrigins = parsed.data.CORS_ORIGINS.split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+// A variable set to an empty string is not "missing", so zod's default does
+// not apply to it. Without this fallback, blanking CORS_ORIGINS in a hosting
+// dashboard would produce an empty allowlist and silently reject every
+// browser request.
+if (corsOrigins.length === 0) {
+    corsOrigins.push("http://localhost:3000");
+    console.warn("CORS_ORIGINS was empty; falling back to http://localhost:3000");
+}
+
+export const config = { ...parsed.data, corsOrigins };

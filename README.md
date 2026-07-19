@@ -88,6 +88,9 @@ serves that production build locally.
 | `backend/.env` | `PORT` | API/socket port (default `8000`) |
 | `backend/.env` | `CORS_ORIGINS` | Comma-separated allowed origins |
 | `frontend/.env` | `VITE_SERVER_URL` | Backend base URL |
+| `frontend/.env` | `VITE_TURN_URL` | TURN relay URL (optional) |
+| `frontend/.env` | `VITE_TURN_USERNAME` | TURN username (optional) |
+| `frontend/.env` | `VITE_TURN_CREDENTIAL` | TURN credential (optional) |
 
 Both `.env` files are gitignored. Only the `.env.example` templates are committed.
 
@@ -137,7 +140,8 @@ Being upfront about what this does not yet do:
   back on.
 - **Room state is in memory.** Active rooms and chat history live in server
   process memory, so a restart drops them and the app cannot yet run across
-  multiple server instances.
+  multiple server instances. Chat backlog is capped per room and freed when
+  the last participant leaves.
 - **Tokens are stored in `localStorage`.** That makes them readable by any
   script running on the page, so a cross-site scripting bug would expose a
   session. `httpOnly` cookies would prevent that, but bring CSRF and
@@ -148,8 +152,8 @@ Being upfront about what this does not yet do:
 ## Roadmap
 
 - [x] JWT authentication with expiry and rotating refresh tokens
-- [ ] TURN server so calls survive restrictive networks
-- [ ] Migrate to the modern `addTrack` / `ontrack` WebRTC API
+- [x] Migrate to the modern `addTrack` / `ontrack` WebRTC API
+- [ ] Provision a TURN server (the client reads credentials already)
 - [ ] Redis-backed room state for horizontal scaling
 - [ ] Waiting room and host controls
 - [ ] Test coverage and CI

@@ -1,10 +1,18 @@
 import React from 'react'
 import "../App.css"
 import { Link, useNavigate } from 'react-router-dom'
+import { generateMeetingCode } from '../utils/meetingCode'
+
 export default function LandingPage() {
 
 
     const router = useNavigate();
+
+    // Guests get a fresh room each time. Previously this navigated to a
+    // hardcoded room id, so every guest in the world joined the same call.
+    const joinAsGuest = () => {
+        router(`/${generateMeetingCode()}`)
+    }
 
     return (
         <div className='landingPageContainer'>
@@ -13,9 +21,7 @@ export default function LandingPage() {
                     <h2>HelloJi</h2>
                 </div>
                 <div className='navlist'>
-                    <p onClick={() => {
-                        router("/aljk23")
-                    }}>Join as Guest</p>
+                    <p onClick={joinAsGuest}>Join as Guest</p>
                     <p onClick={() => {
                         router("/auth")
 

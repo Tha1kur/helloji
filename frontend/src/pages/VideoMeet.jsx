@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom';
 import io from "socket.io-client";
 import { Badge, IconButton, TextField } from '@mui/material';
 import { Button } from '@mui/material';
@@ -25,6 +26,8 @@ const peerConfigConnections = {
 
 export default function VideoMeetComponent() {
 
+    const navigate = useNavigate();
+
     var socketRef = useRef();
     let socketIdRef = useRef();
 
@@ -48,7 +51,7 @@ export default function VideoMeetComponent() {
 
     let [message, setMessage] = useState("");
 
-    let [newMessages, setNewMessages] = useState(3);
+    let [newMessages, setNewMessages] = useState(0);
 
     let [askForUsername, setAskForUsername] = useState(true);
 
@@ -64,11 +67,13 @@ export default function VideoMeetComponent() {
 
     // }
 
+    // Empty dependency array: ask for camera/mic permission once when the
+    // component mounts. Without it this runs after every single render and
+    // re-opens the media devices continuously.
     useEffect(() => {
-        console.log("HELLO")
         getPermissions();
-
-    })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     let getDislayMedia = () => {
         if (screen) {
@@ -129,7 +134,9 @@ export default function VideoMeetComponent() {
         }
 
 
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [video, audio])
+
     let getMedia = () => {
         setVideo(videoAvailable);
         setAudio(audioAvailable);
@@ -395,28 +402,57 @@ export default function VideoMeetComponent() {
         if (screen !== undefined) {
             getDislayMedia();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [screen])
     let handleScreen = () => {
         setScreen(!screen);
     }
 
-    let handleEndCall = () => {
+    // Releases everything this component holds open: camera and microphone
+    // hardware, every peer connection, and the socket. Without this the
+    // browser keeps the camera light on and the peer connections alive after
+    // the user has left the call.
+    let teardown = () => {
         try {
-            let tracks = localVideoref.current.srcObject.getTracks()
-            tracks.forEach(track => track.stop())
-        } catch (e) { }
-        window.location.href = "/"
+            localVideoref.current?.srcObject?.getTracks().forEach(track => track.stop())
+        } catch (e) { console.log(e) }
+
+        try {
+            window.localStream?.getTracks().forEach(track => track.stop())
+        } catch (e) { console.log(e) }
+        window.localStream = null
+
+        // Clear the keys in place rather than reassigning the object: other
+        // closures in this file already hold a reference to it.
+        Object.keys(connections).forEach(id => {
+            try { connections[id].close() } catch (e) { console.log(e) }
+            delete connections[id]
+        })
+
+        try { socketRef.current?.disconnect() } catch (e) { console.log(e) }
+        socketRef.current = null
     }
 
-    let openChat = () => {
-        setModal(true);
-        setNewMessages(0);
+    // Runs when the user navigates away from the call for any reason -
+    // clicking End Call, hitting the back button, or closing the tab.
+    useEffect(() => {
+        return () => teardown()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
+    let handleEndCall = () => {
+        teardown();
+        navigate("/");
     }
-    let closeChat = () => {
-        setModal(false);
-    }
-    let handleMessage = (e) => {
-        setMessage(e.target.value);
+
+    // Opening the chat clears the unread count, since the messages have now
+    // been seen. The previous inline handler toggled the panel without ever
+    // resetting the badge.
+    let toggleChat = () => {
+        setModal((isOpen) => {
+            if (!isOpen) setNewMessages(0);
+            return !isOpen;
+        });
     }
 
     const addMessage = (data, sender, socketIdSender) => {
@@ -516,7 +552,7 @@ export default function VideoMeetComponent() {
                             </IconButton> : <></>}
 
                         <Badge badgeContent={newMessages} max={999} color='orange'>
-                            <IconButton onClick={() => setModal(!showModal)} style={{ color: "white" }}>
+                            <IconButton onClick={toggleChat} style={{ color: "white" }}>
                                 <ChatIcon />                        </IconButton>
                         </Badge>
 

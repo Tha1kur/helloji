@@ -42,7 +42,7 @@ grows as O(n²) — see [Known limitations](#known-limitations).
 
 | Layer | Choice |
 | --- | --- |
-| Frontend | React 18, React Router 6, Material UI |
+| Frontend | React 18, React Router 6, hand-written CSS |
 | Build | Vite |
 | Real-time | WebRTC, Socket.IO |
 | Backend | Node.js, Express |
@@ -87,6 +87,7 @@ serves that production build locally.
 | `backend/.env` | `MONGO_URI` | MongoDB connection string |
 | `backend/.env` | `PORT` | API/socket port (default `8000`) |
 | `backend/.env` | `CORS_ORIGINS` | Comma-separated allowed origins |
+| `backend/.env` | `JWT_SECRET` | Access-token signing key (32+ chars) |
 | `frontend/.env` | `VITE_SERVER_URL` | Backend base URL |
 | `frontend/.env` | `VITE_TURN_URL` | TURN relay URL (optional) |
 | `frontend/.env` | `VITE_TURN_USERNAME` | TURN username (optional) |
@@ -135,9 +136,9 @@ Being upfront about what this does not yet do:
   bandwidth and CPU scale quadratically. Comfortable up to ~4 participants;
   beyond that it needs an SFU (selective forwarding unit) to route streams
   through a media server instead.
-- **STUN only, no TURN.** Calls can fail between peers behind symmetric NAT or
-  restrictive corporate firewalls, because there is no relay server to fall
-  back on.
+- **No TURN relay is provisioned.** The client reads TURN credentials from the
+  environment, but with STUN alone a call cannot connect between peers behind
+  symmetric NAT or a restrictive corporate firewall.
 - **Room state is in memory.** Active rooms and chat history live in server
   process memory, so a restart drops them and the app cannot yet run across
   multiple server instances. Chat backlog is capped per room and freed when
@@ -158,11 +159,37 @@ Being upfront about what this does not yet do:
 - [ ] Waiting room and host controls
 - [ ] Test coverage and CI
 
+## Deployment
+
+The frontend is a static bundle; the backend is a long-running Node process
+because Socket.IO needs a persistent connection, so it cannot go on a
+serverless platform.
+
+**Backend (Render).** Create a Web Service from `render.yaml`, then set
+`MONGO_URI`, `JWT_SECRET` and `CORS_ORIGINS` in the dashboard. Generate a
+different `JWT_SECRET` from the one used locally — sharing a signing key
+across environments means a token minted in development is valid in
+production.
+
+**Frontend (Vercel).** Set the root directory to `frontend` and add
+`VITE_SERVER_URL` pointing at the deployed backend. `vercel.json` rewrites
+every path to `index.html`; without that, opening a meeting link directly
+returns 404, because the host looks for a file at that path rather than
+letting the router handle it.
+
+**After both are live**, set `CORS_ORIGINS` on the backend to the Vercel URL
+and redeploy. Vite inlines `VITE_` variables at build time, so changing
+`VITE_SERVER_URL` needs a rebuild, not just a restart.
+
+On Render's free tier the service sleeps after inactivity, so the first
+request after an idle period takes around a minute to wake it.
+
 ## Acknowledgements
 
 This project began from a course exercise and has been substantially rewritten —
-configuration and secrets management, CORS and auth handling, the signalling
-layer, and the UI. The limitations and roadmap above reflect ongoing work.
+secrets and configuration handling, authentication, the signalling layer, the
+WebRTC implementation, the build toolchain, and the interface. The limitations
+and roadmap above reflect ongoing work.
 
 ## License
 

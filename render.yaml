@@ -1,0 +1,27 @@
+# Render blueprint for the HelloJi API and signalling server.
+# Create the service from this file, then set the secret values in the
+# dashboard (they are marked sync: false so they are never committed here).
+services:
+  - type: web
+    name: helloji-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: PORT
+        value: 8000
+      # Set in the Render dashboard:
+      #   MONGO_URI     - your Atlas connection string
+      #   JWT_SECRET    - node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"
+      #   CORS_ORIGINS  - your deployed frontend URL, e.g. https://helloji.vercel.app
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false

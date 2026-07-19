@@ -23,10 +23,27 @@ app.use(cors({ origin: config.corsOrigins, credentials: true }));
 app.use(express.json({ limit: "40kb" }));
 app.use(express.urlencoded({ limit: "40kb", extended: true }));
 
+// Visiting the root of an API server is a common way to check it is alive,
+// so answer with something readable rather than Express's default 404.
+app.get("/", (req, res) =>
+    res.json({
+        name: "HelloJi API",
+        status: "ok",
+        docs: "https://github.com/Tha1kur/helloji",
+        endpoints: ["/health", "/api/v1/users"],
+    })
+);
+
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 app.use("/api/v1", apiLimiter);
 app.use("/api/v1/users", userRoutes);
+
+// An API should answer in JSON even when the route does not exist, rather
+// than returning Express's default HTML error page to a fetch() caller.
+app.use((req, res) =>
+    res.status(404).json({ message: `Cannot ${req.method} ${req.path}` })
+);
 
 const start = async () => {
     try {

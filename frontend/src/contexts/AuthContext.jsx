@@ -11,6 +11,17 @@ const client = axios.create({
     baseURL: `${server}/api/v1/users`
 })
 
+// Attach the session token to every outgoing request in one place, so no
+// individual call has to remember to do it — and so the token travels in a
+// header rather than a query string, where it would end up in server logs.
+client.interceptors.request.use((config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
 
 export const AuthProvider = ({ children }) => {
 
@@ -60,11 +71,7 @@ export const AuthProvider = ({ children }) => {
 
     const getHistoryOfUser = async () => {
         try {
-            let request = await client.get("/get_all_activity", {
-                params: {
-                    token: localStorage.getItem("token")
-                }
-            });
+            let request = await client.get("/get_all_activity");
             return request.data
         } catch
          (err) {
@@ -75,7 +82,6 @@ export const AuthProvider = ({ children }) => {
     const addToUserHistory = async (meetingCode) => {
         try {
             let request = await client.post("/add_to_activity", {
-                token: localStorage.getItem("token"),
                 meeting_code: meetingCode
             });
             return request

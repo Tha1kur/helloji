@@ -5,7 +5,16 @@ import { z } from "zod";
 // fails immediately with a readable message, rather than surfacing later as
 // a confusing runtime error in an unrelated part of the app.
 const envSchema = z.object({
-    MONGO_URI: z.string().min(1, "MONGO_URI is required"),
+    MONGO_URI: z
+        .string()
+        .min(1, "MONGO_URI is required")
+        .refine(
+            (value) =>
+                value.startsWith("mongodb://") || value.startsWith("mongodb+srv://"),
+            'MONGO_URI must start with "mongodb://" or "mongodb+srv://". A common ' +
+            'cause is pasting the whole line, including the "MONGO_URI=" prefix, ' +
+            "into a hosting dashboard's value field."
+        ),
     JWT_SECRET: z
         .string()
         .min(32, "JWT_SECRET must be at least 32 characters"),

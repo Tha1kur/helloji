@@ -13,10 +13,21 @@ function HomeComponent() {
     const [meetingCode, setMeetingCode] = useState("");
 
 
-    const {addToUserHistory} = useContext(AuthContext);
+    const { addToUserHistory, handleLogout } = useContext(AuthContext);
+
     let handleJoinVideoCall = async () => {
-        await addToUserHistory(meetingCode)
-        navigate(`/${meetingCode}`)
+        const code = meetingCode.trim();
+        if (!code) return;
+
+        // Recording the meeting in history should never stop someone joining
+        // the call, so a failure here is logged rather than surfaced.
+        try {
+            await addToUserHistory(code)
+        } catch (error) {
+            console.error("Could not save meeting to history", error)
+        }
+
+        navigate(`/${code}`)
     }
 
     return (
@@ -39,10 +50,7 @@ function HomeComponent() {
                     </IconButton>
                     <p>History</p>
 
-                    <Button onClick={() => {
-                        localStorage.removeItem("token")
-                        navigate("/auth")
-                    }}>
+                    <Button onClick={handleLogout}>
                         Logout
                     </Button>
                 </div>

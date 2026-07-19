@@ -1,12 +1,16 @@
 import httpStatus from "http-status";
 import bcrypt from "bcrypt";
-import crypto from "node:crypto";
 
 import { User } from "../models/user.model.js";
 import { Meeting } from "../models/meeting.model.js";
+import {
+    createRefreshToken,
+    hashRefreshToken,
+    REFRESH_TOKEN_TTL_MS,
+    signAccessToken,
+} from "../utils/tokens.js";
 
 const SALT_ROUNDS = 10;
-const MIN_PASSWORD_LENGTH = 8;
 
 // Errors are logged server-side but never sent to the client: internal
 // messages leak implementation details that are useful to an attacker.
@@ -17,20 +21,28 @@ const serverError = (res, context, error) => {
         .json({ message: "Something went wrong. Please try again." });
 };
 
+/** Issues a new token pair and records the refresh token's hash. */
+const issueSession = async (user) => {
+    const { token: refreshToken, hash } = createRefreshToken();
+
+    // Drop expired entries while we are here, so the array cannot grow
+    // without bound across months of sign-ins.
+    const now = Date.now();
+    user.refreshTokens = user.refreshTokens.filter(
+        (entry) => entry.expiresAt.getTime() > now
+    );
+    user.refreshTokens.push({
+        hash,
+        expiresAt: new Date(now + REFRESH_TOKEN_TTL_MS),
+    });
+
+    await user.save();
+
+    return { accessToken: signAccessToken(user), refreshToken };
+};
+
 const register = async (req, res) => {
     const { name, username, password } = req.body;
-
-    if (!name || !username || !password) {
-        return res
-            .status(httpStatus.BAD_REQUEST)
-            .json({ message: "Name, username and password are all required." });
-    }
-
-    if (password.length < MIN_PASSWORD_LENGTH) {
-        return res.status(httpStatus.BAD_REQUEST).json({
-            message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
-        });
-    }
 
     try {
         const existingUser = await User.findOne({ username });
@@ -41,13 +53,19 @@ const register = async (req, res) => {
         }
 
         const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-
         await User.create({ name, username, password: hashedPassword });
 
         return res
             .status(httpStatus.CREATED)
             .json({ message: "Account created. You can sign in now." });
     } catch (error) {
+        // Guards against two simultaneous registrations of the same username
+        // slipping past the check above.
+        if (error?.code === 11000) {
+            return res
+                .status(httpStatus.CONFLICT)
+                .json({ message: "That username is already taken." });
+        }
         return serverError(res, "register", error);
     }
 };
@@ -55,30 +73,92 @@ const register = async (req, res) => {
 const login = async (req, res) => {
     const { username, password } = req.body;
 
-    if (!username || !password) {
-        return res
-            .status(httpStatus.BAD_REQUEST)
-            .json({ message: "Username and password are required." });
-    }
-
     try {
         const user = await User.findOne({ username });
 
-        // Same response for "no such user" and "wrong password" so the endpoint
-        // cannot be used to discover which usernames exist.
+        // Identical response for "no such user" and "wrong password" so the
+        // endpoint cannot be used to discover which usernames exist.
         if (!user || !(await bcrypt.compare(password, user.password))) {
             return res
                 .status(httpStatus.UNAUTHORIZED)
                 .json({ message: "Invalid username or password." });
         }
 
-        const token = crypto.randomBytes(20).toString("hex");
-        user.token = token;
-        await user.save();
+        const session = await issueSession(user);
 
-        return res.status(httpStatus.OK).json({ token });
+        return res.status(httpStatus.OK).json({
+            ...session,
+            user: { username: user.username, name: user.name },
+        });
     } catch (error) {
         return serverError(res, "login", error);
+    }
+};
+
+/**
+ * Exchanges a refresh token for a new pair, rotating the old one out.
+ *
+ * Rotation means a token is single-use: if one is stolen and replayed after
+ * the legitimate client has already used it, the hash is no longer on record
+ * and the request is rejected.
+ */
+const refresh = async (req, res) => {
+    const { refreshToken } = req.body;
+
+    try {
+        const hash = hashRefreshToken(refreshToken);
+        const user = await User.findOne({ "refreshTokens.hash": hash });
+
+        if (!user) {
+            return res
+                .status(httpStatus.UNAUTHORIZED)
+                .json({ message: "Session expired. Please sign in again." });
+        }
+
+        const stored = user.refreshTokens.find((entry) => entry.hash === hash);
+
+        // Remove by explicit filter rather than Mongoose's pull(): these
+        // subdocuments are declared with `_id: false`, and pull() matches on
+        // _id, so it would silently remove nothing.
+        const withoutPresented = user.refreshTokens.filter(
+            (entry) => entry.hash !== hash
+        );
+
+        if (stored.expiresAt.getTime() <= Date.now()) {
+            user.refreshTokens = withoutPresented;
+            await user.save();
+            return res
+                .status(httpStatus.UNAUTHORIZED)
+                .json({ message: "Session expired. Please sign in again." });
+        }
+
+        user.refreshTokens = withoutPresented;
+        const session = await issueSession(user);
+
+        return res.status(httpStatus.OK).json({
+            ...session,
+            user: { username: user.username, name: user.name },
+        });
+    } catch (error) {
+        return serverError(res, "refresh", error);
+    }
+};
+
+/** Invalidates the presented refresh token. */
+const logout = async (req, res) => {
+    const { refreshToken } = req.body;
+
+    try {
+        await User.updateOne(
+            { "refreshTokens.hash": hashRefreshToken(refreshToken) },
+            { $pull: { refreshTokens: { hash: hashRefreshToken(refreshToken) } } }
+        );
+
+        // Always reports success: whether the token existed is not information
+        // an unauthenticated caller needs.
+        return res.status(httpStatus.OK).json({ message: "Signed out." });
+    } catch (error) {
+        return serverError(res, "logout", error);
     }
 };
 
@@ -96,12 +176,6 @@ const getUserHistory = async (req, res) => {
 const addToHistory = async (req, res) => {
     const { meeting_code } = req.body;
 
-    if (!meeting_code) {
-        return res
-            .status(httpStatus.BAD_REQUEST)
-            .json({ message: "A meeting code is required." });
-    }
-
     try {
         await Meeting.create({
             user_id: req.user.username,
@@ -116,4 +190,4 @@ const addToHistory = async (req, res) => {
     }
 };
 
-export { login, register, getUserHistory, addToHistory };
+export { addToHistory, getUserHistory, login, logout, refresh, register };

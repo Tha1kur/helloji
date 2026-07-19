@@ -21,40 +21,49 @@ export default function Authentication() {
 
     
 
-    const [username, setUsername] = React.useState();
-    const [password, setPassword] = React.useState();
-    const [name, setName] = React.useState();
-    const [error, setError] = React.useState();
-    const [message, setMessage] = React.useState();
+    // Initialised to "" rather than undefined: an undefined value makes these
+    // inputs start uncontrolled and switch to controlled on first keystroke,
+    // which React warns about.
+    const [username, setUsername] = React.useState("");
+    const [password, setPassword] = React.useState("");
+    const [name, setName] = React.useState("");
+    const [error, setError] = React.useState("");
+    const [message, setMessage] = React.useState("");
 
 
     const [formState, setFormState] = React.useState(0);
 
     const [open, setOpen] = React.useState(false)
+    const [busy, setBusy] = React.useState(false)
 
 
     const { handleRegister, handleLogin } = React.useContext(AuthContext);
 
     let handleAuth = async () => {
+        setError("");
+        setBusy(true);
+
         try {
             if (formState === 0) {
                 await handleLogin(username, password)
-            }
-            if (formState === 1) {
-                let result = await handleRegister(name, username, password);
-                console.log(result);
+            } else {
+                const result = await handleRegister(name, username, password);
                 setUsername("");
+                setPassword("");
                 setMessage(result);
                 setOpen(true);
-                setError("")
                 setFormState(0)
-                setPassword("")
             }
         } catch (err) {
-
-            console.log(err);
-            let message = (err.response.data.message);
-            setError(message);
+            // A network failure has no response body, so reading
+            // err.response.data directly would throw a second error and leave
+            // the user with a silent, frozen form.
+            setError(
+                err.response?.data?.message ||
+                "Could not reach the server. Please check your connection and try again."
+            );
+        } finally {
+            setBusy(false);
         }
     }
 
@@ -147,8 +156,13 @@ export default function Authentication() {
                                 variant="contained"
                                 sx={{ mt: 3, mb: 2 }}
                                 onClick={handleAuth}
+                                disabled={busy}
                             >
-                                {formState === 0 ? "Login " : "Register"}
+                                {busy
+                                    ? "Please wait..."
+                                    : formState === 0
+                                        ? "Login"
+                                        : "Register"}
                             </Button>
 
                         </Box>

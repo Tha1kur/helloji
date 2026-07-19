@@ -47,7 +47,8 @@ grows as O(n²) — see [Known limitations](#known-limitations).
 | Real-time | WebRTC, Socket.IO |
 | Backend | Node.js, Express |
 | Database | MongoDB with Mongoose |
-| Auth | bcrypt password hashing |
+| Auth | JWT access tokens, rotating refresh tokens, bcrypt |
+| Hardening | helmet, express-rate-limit, zod validation |
 
 ## Running locally
 
@@ -94,13 +95,34 @@ Both `.env` files are gitignored. Only the `.env.example` templates are committe
 
 Base path: `/api/v1/users`
 
-| Method | Endpoint | Purpose |
-| --- | --- | --- |
-| `POST` | `/register` | Create an account |
-| `POST` | `/login` | Authenticate, returns a token |
-| `POST` | `/add_to_activity` | Record a joined meeting |
-| `GET` | `/get_all_activity` | Fetch meeting history |
-| `GET` | `/health` | Health check (root path) |
+| Method | Endpoint | Auth | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/register` | — | Create an account |
+| `POST` | `/login` | — | Authenticate, returns a token pair |
+| `POST` | `/refresh` | refresh token | Exchange for a new token pair |
+| `POST` | `/logout` | refresh token | Revoke the presented refresh token |
+| `POST` | `/add_to_activity` | access token | Record a joined meeting |
+| `GET` | `/get_all_activity` | access token | Fetch meeting history |
+| `GET` | `/health` | — | Health check (root path) |
+
+### Authentication
+
+Signing in returns two tokens:
+
+- An **access token** (JWT, 15 minutes) sent as `Authorization: Bearer <token>`.
+  It is verified by checking its signature, so an authenticated request costs
+  no database round trip.
+- A **refresh token** (7 days) used only to obtain a new pair. Only its SHA-256
+  hash is stored, so a database leak does not yield usable tokens.
+
+Refresh tokens are **rotated**: each one can be used once, and using it issues a
+replacement. A token replayed after the legitimate client has already spent it
+is rejected, which is what makes theft detectable. Each sign-in gets its own
+entry, so signing in on a phone does not sign you out on a laptop, and
+`/logout` revokes only the session it is given.
+
+The browser client refreshes automatically on expiry and retries the original
+request once, so a session ending mid-use is invisible to the user.
 
 ## Known limitations
 
@@ -116,12 +138,16 @@ Being upfront about what this does not yet do:
 - **Room state is in memory.** Active rooms and chat history live in server
   process memory, so a restart drops them and the app cannot yet run across
   multiple server instances.
-- **Session tokens do not expire.** Auth currently issues a long-lived random
-  token rather than a signed, expiring one.
+- **Tokens are stored in `localStorage`.** That makes them readable by any
+  script running on the page, so a cross-site scripting bug would expose a
+  session. `httpOnly` cookies would prevent that, but bring CSRF and
+  cross-site cookie handling with them, since the frontend and backend are
+  deployed on different origins. Short access-token lifetimes and rotation
+  limit the blast radius in the meantime.
 
 ## Roadmap
 
-- [ ] JWT authentication with expiry and refresh
+- [x] JWT authentication with expiry and rotating refresh tokens
 - [ ] TURN server so calls survive restrictive networks
 - [ ] Migrate to the modern `addTrack` / `ontrack` WebRTC API
 - [ ] Redis-backed room state for horizontal scaling

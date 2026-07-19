@@ -1,28 +1,26 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom";
 
-const withAuth = (WrappedComponent ) => {
+import { isSignedIn } from "../lib/tokenStorage";
+
+const withAuth = (WrappedComponent) => {
     const AuthComponent = (props) => {
-        const router = useNavigate();
-
-        const isAuthenticated = () => {
-            if(localStorage.getItem("token")) {
-                return true;
-            } 
-            return false;
-        }
+        const navigate = useNavigate();
 
         useEffect(() => {
-            if(!isAuthenticated()) {
-                router("/auth")
+            if (!isSignedIn()) {
+                navigate("/auth", { replace: true });
             }
-            // eslint-disable-next-line react-hooks/exhaustive-deps
-        }, [])
+        }, [navigate]);
 
-        return <WrappedComponent {...props} />
-    }
+        // Render nothing while redirecting, so a protected page never flashes
+        // on screen for a signed-out visitor.
+        if (!isSignedIn()) return null;
+
+        return <WrappedComponent {...props} />;
+    };
 
     return AuthComponent;
-}
+};
 
 export default withAuth;

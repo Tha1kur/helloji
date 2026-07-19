@@ -1,14 +1,35 @@
 import mongoose, { Schema } from "mongoose";
 
-const userScheme = new Schema(
+// One entry per active session, so signing in on a phone does not sign the
+// user out on their laptop. Only the hash of each token is stored.
+const refreshTokenSchema = new Schema(
     {
-        name: { type: String, required: true },
-        username: { type: String, required: true, unique: true },
-        password: { type: String, required: true },
-        token: { type: String }
-    }
-)
+        hash: { type: String, required: true },
+        expiresAt: { type: Date, required: true },
+    },
+    { _id: false }
+);
 
-const User = mongoose.model("User", userScheme);
+const userSchema = new Schema(
+    {
+        name: { type: String, required: true, trim: true },
+        username: { type: String, required: true, unique: true, trim: true },
+        password: { type: String, required: true },
+        refreshTokens: { type: [refreshTokenSchema], default: [] },
+    },
+    { timestamps: true }
+);
+
+// The password hash and session tokens should never reach a JSON response,
+// even if a future handler returns a user document directly.
+userSchema.set("toJSON", {
+    transform: (_doc, ret) => {
+        delete ret.password;
+        delete ret.refreshTokens;
+        return ret;
+    },
+});
+
+const User = mongoose.model("User", userSchema);
 
 export { User };

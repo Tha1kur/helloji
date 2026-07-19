@@ -1,104 +1,83 @@
-import axios from "axios";
-import httpStatus from "http-status";
-import { createContext, useContext, useState } from "react";
+import { createContext, useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import server from "../environment";
 
+import { apiClient, setSessionExpiredHandler } from "../lib/apiClient";
+import {
+    clearSession,
+    getRefreshToken,
+    getStoredUser,
+    saveSession,
+} from "../lib/tokenStorage";
 
 export const AuthContext = createContext({});
 
-const client = axios.create({
-    baseURL: `${server}/api/v1/users`
-})
-
-// Attach the session token to every outgoing request in one place, so no
-// individual call has to remember to do it — and so the token travels in a
-// header rather than a query string, where it would end up in server logs.
-client.interceptors.request.use((config) => {
-    const token = localStorage.getItem("token");
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-});
-
-
 export const AuthProvider = ({ children }) => {
+    const navigate = useNavigate();
+    const [user, setUser] = useState(getStoredUser);
 
-    const authContext = useContext(AuthContext);
+    const signOutLocally = useCallback(() => {
+        clearSession();
+        setUser(null);
+        navigate("/auth");
+    }, [navigate]);
 
-
-    const [userData, setUserData] = useState(authContext);
-
-
-    const router = useNavigate();
+    // When a refresh fails the session is genuinely over, so send the user to
+    // the sign-in page instead of leaving the app in a half-authenticated state.
+    useEffect(() => {
+        setSessionExpiredHandler(signOutLocally);
+    }, [signOutLocally]);
 
     const handleRegister = async (name, username, password) => {
-        try {
-            let request = await client.post("/register", {
-                name: name,
-                username: username,
-                password: password
-            })
-
-
-            if (request.status === httpStatus.CREATED) {
-                return request.data.message;
-            }
-        } catch (err) {
-            throw err;
-        }
-    }
+        const { data } = await apiClient.post("/register", {
+            name,
+            username,
+            password,
+        });
+        return data.message;
+    };
 
     const handleLogin = async (username, password) => {
-        try {
-            let request = await client.post("/login", {
-                username: username,
-                password: password
-            });
+        const { data } = await apiClient.post("/login", { username, password });
+        saveSession(data);
+        setUser(data.user);
+        navigate("/home");
+    };
 
-            console.log(username, password)
-            console.log(request.data)
+    const handleLogout = async () => {
+        const refreshToken = getRefreshToken();
 
-            if (request.status === httpStatus.OK) {
-                localStorage.setItem("token", request.data.token);
-                router("/home")
+        // Revoke server-side so the refresh token cannot be reused, but never
+        // block signing out on that request succeeding.
+        if (refreshToken) {
+            try {
+                await apiClient.post("/logout", { refreshToken });
+            } catch {
+                // Ignored on purpose - local sign-out still proceeds.
             }
-        } catch (err) {
-            throw err;
         }
-    }
+
+        signOutLocally();
+    };
 
     const getHistoryOfUser = async () => {
-        try {
-            let request = await client.get("/get_all_activity");
-            return request.data
-        } catch
-         (err) {
-            throw err;
-        }
-    }
+        const { data } = await apiClient.get("/get_all_activity");
+        return data;
+    };
 
     const addToUserHistory = async (meetingCode) => {
-        try {
-            let request = await client.post("/add_to_activity", {
-                meeting_code: meetingCode
-            });
-            return request
-        } catch (e) {
-            throw e;
-        }
-    }
+        return apiClient.post("/add_to_activity", { meeting_code: meetingCode });
+    };
 
-
-    const data = {
-        userData, setUserData, addToUserHistory, getHistoryOfUser, handleRegister, handleLogin
-    }
+    const value = {
+        user,
+        handleRegister,
+        handleLogin,
+        handleLogout,
+        getHistoryOfUser,
+        addToUserHistory,
+    };
 
     return (
-        <AuthContext.Provider value={data}>
-            {children}
-        </AuthContext.Provider>
-    )
-
-}
+        <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+    );
+};

@@ -1,7 +1,7 @@
 {
-  "name": "backend",
+  "name": "helloji-backend",
   "version": "1.0.0",
-  "description": "API and WebRTC signaling server for the video conferencing app.",
+  "description": "REST API and WebRTC signaling server for HelloJi.",
   "main": "src/app.js",
   "type": "module",
   "scripts": {

@@ -1,17 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import io from "socket.io-client";
-import { Badge } from '@mui/material';
 import {
-    CallEnd as CallEndIcon,
-    Chat as ChatIcon,
-    Mic as MicIcon,
-    MicOff as MicOffIcon,
-    ScreenShare as ScreenShareIcon,
-    StopScreenShare as StopScreenShareIcon,
-    Videocam as VideocamIcon,
-    VideocamOff as VideocamOffIcon,
-} from '@mui/icons-material';
+    CallEndIcon,
+    ChatIcon,
+    MicIcon,
+    MicOffIcon,
+    ScreenShareIcon,
+    StopScreenShareIcon,
+    VideocamIcon,
+    VideocamOffIcon,
+} from '../components/Icons';
 
 import styles from "../styles/videoComponent.module.css";
 import server from '../environment';
@@ -593,16 +592,26 @@ export default function VideoMeetComponent() {
                             </button>
                         )}
 
-                        <Badge badgeContent={newMessages} max={99} color="warning">
+                        <div className={styles.badgeWrap}>
                             <button
                                 type="button"
-                                aria-label="Toggle chat"
+                                aria-label={
+                                    newMessages
+                                        ? `Toggle chat, ${newMessages} unread`
+                                        : "Toggle chat"
+                                }
                                 className={styles.controlButton}
                                 onClick={toggleChat}
                             >
                                 <ChatIcon />
                             </button>
-                        </Badge>
+
+                            {newMessages > 0 && (
+                                <span className={styles.badge}>
+                                    {newMessages > 99 ? "99+" : newMessages}
+                                </span>
+                            )}
+                        </div>
 
                         <button
                             type="button"

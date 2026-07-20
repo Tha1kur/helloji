@@ -157,7 +157,7 @@ Being upfront about what this does not yet do:
 - [ ] Provision a TURN server (the client reads credentials already)
 - [ ] Redis-backed room state for horizontal scaling
 - [ ] Waiting room and host controls
-- [ ] Test coverage and CI
+- [x] Test coverage and CI
 
 ## Deployment
 

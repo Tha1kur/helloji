@@ -21,7 +21,32 @@ export const io = connectToSocket(server);
 app.set("trust proxy", 1);
 
 app.use(helmet());
-app.use(cors({ origin: config.corsOrigins, credentials: true }));
+
+// Hosting platforms give every build its own URL, so an allowlist of exact
+// origins rejects the deployment the developer is actually looking at. Entries
+// may contain "*" to match one hostname segment, e.g.
+// https://helloji-*-myteam.vercel.app - narrow enough that it does not admit
+// unrelated sites on the same platform.
+const originMatchers = config.corsOrigins.map((entry) => {
+    if (!entry.includes("*")) return (origin) => origin === entry;
+
+    const pattern = new RegExp(
+        `^${entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^./]+")}$`
+    );
+    return (origin) => pattern.test(origin);
+});
+
+app.use(
+    cors({
+        origin(origin, callback) {
+            // Requests without an Origin header (curl, health checks,
+            // same-origin server calls) are not browser cross-origin requests.
+            if (!origin) return callback(null, true);
+            callback(null, originMatchers.some((matches) => matches(origin)));
+        },
+        credentials: true,
+    })
+);
 app.use(express.json({ limit: "40kb" }));
 app.use(express.urlencoded({ limit: "40kb", extended: true }));
 

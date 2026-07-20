@@ -14,6 +14,20 @@ const envSchema = z.object({
             'MONGO_URI must start with "mongodb://" or "mongodb+srv://". A common ' +
             'cause is pasting the whole line, including the "MONGO_URI=" prefix, ' +
             "into a hosting dashboard's value field."
+        )
+        // Atlas offers its connection string without a database name. Left as
+        // is, the driver silently uses a database called "test", so the app
+        // runs perfectly against entirely different data than intended - a
+        // failure with no error to notice. Refuse to start instead.
+        .refine(
+            (value) => {
+                const afterHost = value.split("://")[1]?.split("@").pop() ?? "";
+                const path = afterHost.split("?")[0];
+                return path.includes("/") && path.split("/")[1].length > 0;
+            },
+            'MONGO_URI must name a database, e.g. ".../helloji?retryWrites=true". ' +
+            'Atlas omits it by default, and without it the driver falls back to a ' +
+            'database called "test" without reporting anything.'
         ),
     JWT_SECRET: z
         .string()

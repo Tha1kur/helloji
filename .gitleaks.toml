@@ -1,0 +1,4 @@
+title = "HelloJi secret detection"
+
+[extend]
+useDefault = true

@@ -12,22 +12,34 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   backend:
     name: Backend
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          node-version: 22
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
+      - name: Verify runtime
+        run: node scripts/quality-gates.mjs runtime
+
       - name: Install
         working-directory: backend
-        run: npm ci
+        run: npm ci --no-audit
+
+      - name: Syntax
+        run: node scripts/quality-gates.mjs syntax
 
       - name: Test
         working-directory: backend
@@ -39,19 +51,25 @@ jobs:
 
   frontend:
     name: Frontend
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          node-version: 22
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Verify runtime
+        run: node scripts/quality-gates.mjs runtime
+
       - name: Install
         working-directory: frontend
-        run: npm ci
+        run: npm ci --no-audit
 
       - name: Test
         working-directory: frontend
@@ -64,3 +82,26 @@ jobs:
       - name: Audit
         working-directory: frontend
         run: npm audit --audit-level=high
+
+  repository:
+    name: Repository checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install pinned secret scanner
+        run: node scripts/install-gitleaks.mjs
+
+      - name: Scan repository history
+        run: node scripts/quality-gates.mjs secrets
+
+      - name: Test quality gates
+        run: node --test scripts/quality-gates.test.mjs

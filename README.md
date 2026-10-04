@@ -52,18 +52,20 @@ grows as O(n²) — see [Known limitations](#known-limitations).
 
 ## Running locally
 
-**Requirements:** Node.js 18+, and a MongoDB database (local or Atlas).
+**Requirements:** Node.js 22.22.0 with its bundled npm 10.9.4, and a MongoDB database (local or Atlas). The pinned runtime is shared by development, CI, and the Render blueprint.
 
 ```bash
-git clone <your-repo-url>
-cd Zoom-main
+git clone https://github.com/Tha1kur/helloji.git
+cd helloji
+nvm install
+nvm use
 ```
 
 **Backend**
 
 ```bash
 cd backend
-npm install
+npm ci --no-audit
 cp .env.example .env     # then fill in MONGO_URI
 npm run dev              # http://localhost:8000
 ```
@@ -72,13 +74,69 @@ npm run dev              # http://localhost:8000
 
 ```bash
 cd frontend
-npm install
+npm ci --no-audit
 cp .env.example .env     # defaults to the local backend
 npm run dev              # http://localhost:3000
 ```
 
 Other frontend scripts: `npm run build` produces `build/`, and `npm run preview`
 serves that production build locally.
+
+### Quality gates
+
+After installing both packages, install the pinned, checksum-verified secret scanner
+and enable the repository's native hooks:
+
+```bash
+node scripts/install-gitleaks.mjs
+git config --local core.hooksPath .githooks
+```
+
+Review any existing `core.hooksPath` before changing it. Hook setup is explicit;
+package installation does not change your Git configuration. The scanner is stored
+in ignored `.tools/`, not installed globally. Its version and release checksums are
+in `scripts/gitleaks.json` (macOS/Linux, arm64/x64).
+
+- **Pre-commit:** checks staged whitespace, private environment/key filenames, and
+  staged secrets. Secret-free `.example`, `.sample`, and `.template` files are
+  allowed; their contents are still scanned. No tests, builds, downloads, or edits.
+- **Pre-push:** requires the pinned runtime, installed dependencies matching the
+  lockfiles, and a prepared MongoDB test binary. Runs backend JavaScript syntax
+  checks, both complete test suites, and the frontend production build. It never
+  installs dependencies or downloads MongoDB. The build writes ignored `frontend/build/`.
+- **CI:** independently clean-installs both packages, preserves the complete tests,
+  frontend build, and `npm audit --audit-level=high` checks, and scans Git history
+  for secrets. Both development and production dependencies remain audited.
+
+For verification of current uncommitted work:
+
+```bash
+node scripts/quality-gates.mjs verify
+node --test scripts/quality-gates.test.mjs
+```
+
+Pre-push verifies the checked-out commit, so commit or move uncommitted inputs in
+`backend/`, `frontend/`, `scripts/`, or the hook configuration before pushing.
+Push a different checked-out commit separately. Deletion-only pushes need no tests.
+The hook does not stash files or alter your index. Local hooks can be bypassed;
+GitHub required checks are the authoritative enforcement mechanism. Repository
+settings must require **Backend**, **Frontend**, and **Repository checks** on PRs.
+
+A cold backend install normally downloads the MongoDB test binary. If it was not
+prepared (for example, install scripts were disabled), prepare it explicitly:
+
+```bash
+(cd backend && node node_modules/mongodb-memory-server/postinstall.js)
+```
+
+Then retry verification. Tests use an isolated database and dummy credentials;
+no production database or credentials are required. Keep the local cached binary
+available for offline pre-push checks. To refresh the secret scanner after a
+reviewed version/checksum update, rerun its installer. No automatic tool upgrades
+occur in hooks.
+
+Dependency audit failures must be fixed with reviewed updates; the gates do not
+suppress advisories, skip tests, or automatically run `npm audit fix`.
 
 ### Environment variables
 

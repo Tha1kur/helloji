@@ -25,3 +25,6 @@ yarn-error.log*
 .idea/
 .claude/
 *.code-workspace
+
+# Pinned local quality-gate tools
+/.tools/
